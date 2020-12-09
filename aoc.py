@@ -13,12 +13,13 @@ class Harness:
 
 def _all_tests_pass(solve, tests):
     return all(
-        _test_passes(solve, testfile, expected) for (testfile, expected) in tests
+        _test_passes(solve, test_inputs, expected) for (test_inputs, expected) in tests
     )
 
 
-def _test_passes(solve, testfile, expected):
-    test_result = solve(testfile)
+def _test_passes(solve, test_inputs, expected):
+    inputs_tuple = test_inputs if type(test_inputs) is tuple else (test_inputs,)
+    test_result = solve(*inputs_tuple)
 
     ok = test_result == expected
 
