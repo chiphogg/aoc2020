@@ -54,15 +54,10 @@ class Map:
             self.lines = f.read().splitlines()
 
         self.num_rows = len(self.lines)
-        self.num_cols = _assume_all_identical(len(l) for l in self.lines)
+        self.num_cols = assume_all_identical(len(l) for l in self.lines)
 
     def is_tree(self, i, j):
         return self.lines[i][j % self.num_cols] == "#"
-
-
-def _assume_all_identical(iterable):
-    (common_value,) = set(iterable)
-    return common_value
 
 
 if __name__ == "__main__":

@@ -27,3 +27,8 @@ def _test_passes(solve, test_inputs, expected):
         print("Failed test (got {}, expected {}).".format(test_result, expected))
 
     return ok
+
+
+def assume_all_identical(iterable):
+    (common_value,) = set(iterable)
+    return common_value
