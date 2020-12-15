@@ -3,10 +3,10 @@ class Harness:
         self.next_part_num = 1
 
     def attempt_part(self, solve, realfile, tests):
-        print("\nPart {}".format(self.next_part_num))
+        print("\nPart {}: ".format(self.next_part_num), end="")
 
         if _all_tests_pass(solve, tests):
-            print(solve(realfile))
+            print(f"\n{solve(realfile)}")
 
         self.next_part_num += 1
 
@@ -25,6 +25,8 @@ def _test_passes(solve, test_inputs, expected):
 
     if not ok:
         print("Failed test (got {}, expected {}).".format(test_result, expected))
+    else:
+        print(b"\xe2\x9c\x93".decode("utf-8"), end="", flush=True)
 
     return ok
 
