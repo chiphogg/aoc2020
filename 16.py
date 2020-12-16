@@ -1,4 +1,5 @@
 import sys
+import math
 
 import aoc
 
@@ -7,6 +8,51 @@ def main():
     harness = aoc.Harness()
     harness.attempt_part(
         _add_all_definitely_invalid_values, "./16.txt", [("./16_test.txt", 71)],
+    )
+    harness.attempt_part(
+        _product_of_departures, "./16.txt", [],
+    )
+
+
+def _product_of_departures(filename):
+    rules, my_ticket, nearby_tickets = _read_file(filename)
+    valid_tickets = _discard_invalid(nearby_tickets, rules)
+    field_indices = _solve(_map_possible_field_indices(rules, valid_tickets))
+    return math.prod(
+        my_ticket[field_indices[name][0]]
+        for name in field_indices
+        if name.startswith("departure")
+    )
+
+
+def _solve(index_map):
+    while any(len(indices) > 1 for indices in index_map.values()):
+        for name in index_map:
+            if len(index_map[name]) == 1:
+                index = index_map[name][0]
+                for other_name in index_map:
+                    if name != other_name:
+                        if index in index_map[other_name]:
+                            index_map[other_name].remove(index)
+    assert all(len(indices) == 1 for indices in index_map.values())
+    return index_map
+
+
+def _map_possible_field_indices(rules, tickets):
+    num_fields = aoc.assume_all_identical(len(t) for t in tickets)
+    return {
+        name: [
+            i
+            for i in range(num_fields)
+            if all(any(a <= t[i] <= b for a, b in bounds_list) for t in tickets)
+        ]
+        for name, bounds_list in rules
+    }
+
+
+def _discard_invalid(tickets, rules):
+    return list(
+        filter(lambda t: all(not _definitely_invalid(x, rules) for x in t), tickets)
     )
 
 
@@ -24,7 +70,7 @@ def _definitely_invalid(x, rules):
 def _read_file(filename):
     with open(filename) as f:
         r, my, nearby = f.read().rstrip("\n").split("\n\n")
-    return (_parse_rules(r), _parse_ticket_group(my), _parse_ticket_group(nearby))
+    return (_parse_rules(r), _parse_ticket_group(my)[0], _parse_ticket_group(nearby))
 
 
 def _parse_rules(rule_chunk):
