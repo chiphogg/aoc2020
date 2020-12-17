@@ -2,148 +2,128 @@ import numpy as np
 
 
 class IndexedCube:
-    def __init__(self, data, min_z=0, min_row=0, min_col=0):
+    def __init__(self, data, i_start=None):
         self.data = data
-        (num_layers, num_rows, num_cols) = self.data.shape
-        self.range = {
-            "z": (min_z, min_z + num_layers),
-            "row": (min_row, min_row + num_rows),
-            "col": (min_col, min_col + num_cols),
-        }
 
-    def get(self, z, row, col):
+        self.i_start = i_start if i_start else (0,) * len(data.shape)
+        assert len(self.i_start) == len(data.shape)
+
+        self.i_stop = tuple(i + s for (i, s) in zip(self.i_start, data.shape))
+
+        self._default = self._get_default_value()
+
+    def get(self, i_tuple):
         return (
-            self.data[self._data_indices(z, row, col)]
-            if self._have_data(z, row, col)
-            else "."
+            self.data[self._data_indices(i_tuple)]
+            if self._have_data(i_tuple)
+            else self._default
         )
 
-    def set(self, z, row, col, val):
-        self.data[self._data_indices(z, row, col)] = val
+    def set(self, i_tuple, val):
+        self.data[self._data_indices(i_tuple)] = val
 
-    def print(self):
-        for z in self._range("z"):
-            print(f"\nz={z}")
-            print(f"(first col {self._min('col')})")
-            for row in self._range("row"):
-                row_vals = "".join(self.get(z, row, col) for col in self._range("col"))
-                print(f"{row_vals} {row:3}")
+    def d(self):
+        return len(self.i_start)
 
-    def _data_indices(self, z, row, col):
-        return (
-            z - self._min("z"),
-            row - self._min("row"),
-            col - self._min("col"),
+    def _get_default_value(self):
+        return type(self.data[self._data_indices((0,) * self.d())])()
+
+    def _data_indices(self, i_tuple):
+        return tuple(i - i_start for (i, i_start) in zip(i_tuple, self.i_start))
+
+    def _range(self, dim, expand=0):
+        return range(self.i_start[dim] - expand, self.i_stop[dim] + expand)
+
+    def _shape(self, expand=0):
+        return tuple((2 * expand + b - a) for a, b in zip(self.i_start, self.i_stop))
+
+    def _have_data(self, i_tuple):
+        return all(
+            (start <= i < stop)
+            for start, i, stop in zip(self.i_start, i_tuple, self.i_stop)
         )
 
-    def _range(self, label, expand=0):
-        return range(self.range[label][0] - expand, self.range[label][1] + expand)
-
-    def _min(self, label):
-        return self.range[label][0]
-
-    def _in_range(self, label, x):
-        return self.range[label][0] <= x < self.range[label][1]
-
-    def _have_data(self, z, row, col):
-        return (
-            self._in_range("z", z)
-            and self._in_range("row", row)
-            and self._in_range("col", col)
+    def _expand(self):
+        copy = self.__class__(
+            data=np.full(self._shape(expand=1), fill_value=".", dtype=self.data.dtype),
+            i_start=tuple(i - 1 for i in self.i_start),
         )
+        for i_tuple in self._full_range():
+            copy.set(i_tuple, self.get(i_tuple))
+        return copy
+
+    def _full_range(self):
+        return self._partial_range(0)
+
+    def _partial_range(self, i_start):
+        if i_start >= self.d():
+            yield tuple()
+            return
+        for i in self._range(i_start):
+            for rest in self._partial_range(i_start + 1):
+                yield (i,) + rest
 
 
 class ConwayCube(IndexedCube):
-    def __init__(self, data, min_z=0, min_row=0, min_col=0):
-        super().__init__(data=data, min_z=min_z, min_row=min_row, min_col=min_col)
+    def __init__(self, data, i_start=None):
+        super().__init__(data=data, i_start=i_start)
 
     def count_active(self):
-        return sum(c == "#" for layer in self.data for row in layer for c in row)
+        return np.sum(self.data == "#")
 
     def execute_bootup_cycle(self):
         copy = self._expand()
         neighbour_counts = copy._all_active_neghbour_counts()
-        for z, row, col in copy._full_range():
-            if copy.active(z, row, col) and not (
-                2 <= neighbour_counts.get(z, row, col) <= 3
-            ):
-                copy.set(z, row, col, ".")
-            if (not copy.active(z, row, col)) and neighbour_counts.get(
-                z, row, col
-            ) == 3:
-                copy.set(z, row, col, "#")
+        for i_tuple in copy._full_range():
+            if copy.active(i_tuple) and (not 2 <= neighbour_counts.get(i_tuple) <= 3):
+                copy.set(i_tuple, ".")
+            if (not copy.active(i_tuple)) and neighbour_counts.get(i_tuple) == 3:
+                copy.set(i_tuple, "#")
         return copy._trim()
 
-    def active(self, z, row, col):
-        return self.get(z, row, col) == "#"
-
-    def _full_range(self):
-        for z in self._range("z"):
-            for row in self._range("row"):
-                for col in self._range("col"):
-                    yield (z, row, col)
+    def active(self, i_tuple):
+        return self.get(i_tuple) == "#"
 
     def _trim(self):
-        zs = set()
-        rows = set()
-        cols = set()
-        for z, row, col in self._full_range():
-            if self.active(z, row, col):
-                zs.add(z)
-                rows.add(row)
-                cols.add(col)
+        nonempty = [set() for _ in range(self.d())]
+        for i_tuple in self._full_range():
+            if self.active(i_tuple):
+                for i, index in enumerate(i_tuple):
+                    nonempty[i].add(index)
 
-        z0, r0, c0 = (self._min("z"), self._min("row"), self._min("col"))
-        return ConwayCube(
-            data=self.data[
-                (min(zs) - z0) : (max(zs) + 1 - z0),
-                (min(rows) - r0) : (max(rows) + 1 - r0),
-                (min(cols) - c0) : (max(cols) + 1 - c0),
-            ],
-            min_z=min(zs),
-            min_row=min(rows),
-            min_col=min(cols),
+        data_indices = tuple(
+            slice(min(ii) - i0, max(ii) + 1 - i0)
+            for ii, i0 in zip(nonempty, self.i_start)
         )
+        return ConwayCube(
+            data=self.data[data_indices], i_start=tuple(min(ii) for ii in nonempty)
+        )
+
+    def _neighbour_indices(self, i_tuple):
+        return (
+            n_tuple
+            for n_tuple in self._partial_neighbour_indices(i_tuple)
+            if n_tuple != i_tuple
+        )
+
+    def _partial_neighbour_indices(self, i_tuple):
+        if len(i_tuple) < 1:
+            yield tuple()
+            return
+        i = i_tuple[0]
+        for rest in self._partial_neighbour_indices(i_tuple[1:]):
+            yield (i - 1,) + rest
+            yield (i,) + rest
+            yield (i + 1,) + rest
 
     def _all_active_neghbour_counts(self):
-        data = np.array(
-            [
-                [
-                    [
-                        self._count_active_neighbours(z, row, col)
-                        for col in self._range("col")
-                    ]
-                    for row in self._range("row")
-                ]
-                for z in self._range("z")
-            ]
-        )
-        return IndexedCube(
-            data=data,
-            min_z=self._min("z"),
-            min_row=self._min("row"),
-            min_col=self._min("col"),
-        )
+        data = np.zeros_like(self.data, dtype=int)
+        for i_tuple in self._full_range():
+            data[self._data_indices(i_tuple)] = self._count_active_neighbours(i_tuple)
+        return IndexedCube(data=data, i_start=self.i_start)
 
-    def _count_active_neighbours(self, z, row, col):
-        return sum(
-            1
-            for n_z in range(z - 1, z + 2)
-            for n_row in range(row - 1, row + 2)
-            for n_col in range(col - 1, col + 2)
-            if self.get(n_z, n_row, n_col) == "#"
-        ) - (self.get(z, row, col) == "#")
+    def _count_active_neighbours(self, i_tuple):
+        return sum(self.active(n_tuple) for n_tuple in self._neighbour_indices(i_tuple))
 
-    def _expand(self):
-        new_data = np.array(
-            [
-                [
-                    [self.get(z, row, col) for col in self._range("col", expand=1)]
-                    for row in self._range("row", expand=1)
-                ]
-                for z in self._range("z", expand=1)
-            ]
-        )
-        return ConwayCube(
-            new_data, self._min("z") - 1, self._min("row") - 1, self._min("col") - 1,
-        )
+    def _get_default_value(self):
+        return "."
