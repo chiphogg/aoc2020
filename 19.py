@@ -7,15 +7,55 @@ import aoc
 def main():
     harness = aoc.Harness()
     harness.attempt_part(
-        _count_valid_lines, "./19.txt", [("./19_test.txt", 2)],
+        _count_valid_lines, "./19.txt", [("./19_test.txt", 2), ("./19_test_2.txt", 3)],
+    )
+    harness.attempt_part(
+        _count_valid_lines_goofy_ad_hoc, "./19.txt", [("./19_test_2.txt", 12)],
     )
 
 
+def _count_valid_lines_goofy_ad_hoc(filename):
+    rules, examples = _read_rules_and_examples(filename)
+    return sum(_goofy_ad_hoc_valid(rules, x) for x in examples)
+
+
+def _goofy_ad_hoc_valid(rules, example):
+    for remainder in _remove_matches_of_rule_8(rules, example):
+        if _rule_11_matches(rules, remainder):
+            return True
+    return False
+
+
+def _remove_matches_of_rule_8(rules, example):
+    for target in rules["42"]:
+        if example.startswith(target):
+            remainder = example[len(target) :]
+            yield remainder
+            for x in _remove_matches_of_rule_8(rules, remainder):
+                yield x
+
+
+def _rule_11_matches(rules, example):
+    for left_target in rules["42"]:
+        if example.startswith(left_target):
+            removed_left = example[len(left_target) :]
+            for right_target in rules["31"]:
+                if removed_left.endswith(right_target):
+                    remainder = removed_left[: -len(right_target)]
+                    if (not remainder) or _rule_11_matches(rules, remainder):
+                        return True
+    return False
+
+
 def _count_valid_lines(filename):
+    rules, examples = _read_rules_and_examples(filename)
+    return sum(_valid(rules, x) for x in examples)
+
+
+def _read_rules_and_examples(filename):
     with open(filename) as f:
         rule_lines, example_lines = f.read().rstrip("\n").split("\n\n")
-    rules = _precompute(_parse_rules(rule_lines))
-    return sum(1 for example in example_lines.splitlines() if _valid(rules, example))
+    return _precompute(_parse_rules(rule_lines)), example_lines.splitlines()
 
 
 def _precompute(rules):
