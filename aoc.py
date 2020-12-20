@@ -32,5 +32,8 @@ def _test_passes(solve, test_inputs, expected):
 
 
 def assume_all_identical(iterable):
-    (common_value,) = set(iterable)
+    all_values = set(iterable)
+    if len(all_values) > 1:
+        print(f"Warning: saw values {all_values}; expected identical")
+    (common_value,) = all_values
     return common_value
