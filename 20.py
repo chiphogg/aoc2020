@@ -1,3 +1,4 @@
+from collections import defaultdict
 import math
 import sys
 
@@ -79,6 +80,8 @@ class ImageTile:
         self.data = np.array([list(line) for line in data.split("\n")])
         self.size = aoc.assume_all_identical(self.data.shape)
         self.coords = Orientation(self.size)
+        self._up_match_results = defaultdict(dict)
+        self._left_match_results = defaultdict(dict)
 
     def _matches(self, them, my_start, their_start, direction):
         return all(
@@ -86,21 +89,38 @@ class ImageTile:
             for i in range(self.size)
         )
 
+    def _signature(self):
+        return (self.id, self.coords.turned, self.coords.flipped)
+
     def matches_left(self, tile):
-        return self._matches(
-            them=tile,
-            my_start=np.array((0, 0)),
+        return self._match_with_cache(
+            tile,
+            cache=self._left_match_results[self._signature()],
             their_start=np.array((0, self.size - 1)),
             direction=np.array((1, 0)),
         )
 
     def matches_up(self, tile):
-        return self._matches(
-            them=tile,
-            my_start=np.array((0, 0)),
+        return self._match_with_cache(
+            tile,
+            cache=self._up_match_results[self._signature()],
             their_start=np.array((self.size - 1, 0)),
             direction=np.array((0, 1)),
         )
+
+    def _match_with_cache(self, tile, cache, their_start, direction):
+        signature = tile._signature()
+        if signature in cache:
+            return cache[signature]
+
+        result = self._matches(
+            them=tile,
+            my_start=np.array((0, 0)),
+            their_start=their_start,
+            direction=direction,
+        )
+        cache[signature] = result
+        return result
 
     def get(self, i_tuple):
         return self.data[self.coords.indices(i_tuple)]
