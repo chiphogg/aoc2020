@@ -11,37 +11,64 @@ def main():
 
 
 def _collect_labels_after_100_moves(cup_indices):
-    cups = [int(i) for i in cup_indices]
+    next_cups = _find_next_cup(cup_indices)
+    i = int(cup_indices[0])
     for _ in range(100):
-        _make_move(cups, 3)
-    return "".join(str(i) for i in _place_at_front(cups, 1)[1:])
+        i = _make_move(next_cups, i)
+    return "".join(str(c) for c in _cups_after_1(next_cups))
 
 
-def _make_move(cups, n):
-    i_dest_stop = cups.index(_find_destination(cups, n_pickup=n)) + 1
-    cups[:] = (
-        cups[(n + 1) : i_dest_stop] + _pick_up(cups, n) + cups[i_dest_stop:] + [cups[0]]
-    )
+def _print(next_cups, current):
+    cups = [f"({current})"]
+    i = current
+    for _ in range(len(next_cups) - 2):
+        i = next_cups[i]
+        cups.append(str(i))
+    print(" ".join(cups))
 
 
-def _pick_up(cups, n):
-    return cups[1 : (n + 1)]
+def _make_move(next_cups, current):
+    removed = _pick_up_3(next_cups, current)
+    destination = _find_destination(next_cups, current, forbidden=removed)
+    next_cups[current] = next_cups[removed[-1]]
+    next_cups[removed[-1]] = next_cups[destination]
+    next_cups[destination] = removed[0]
+    return next_cups[current]
 
 
-def _find_destination(cups, n_pickup):
-    i = cups[0]
-    candidates = cups[n_pickup + 1 :]
-    for _ in range(len(candidates)):
-        i -= 1
-        if i < 1:
-            return max(candidates)
-        if i in candidates:
-            return i
+def _find_destination(next_cups, current, forbidden):
+    d = _next_lowest_cup(current, highest=len(next_cups) - 1)
+    while d in forbidden:
+        d = _next_lowest_cup(d, highest=len(next_cups) - 1)
+    return d
 
 
-def _place_at_front(cups, target):
-    i = cups.index(target)
-    return cups[i:] + cups[:i]
+def _next_lowest_cup(current, highest):
+    return highest if current <= 1 else current - 1
+
+
+def _pick_up_3(next_cups, current):
+    pickup = next_cups[current]
+    results = [pickup]
+    for _ in range(2):
+        pickup = next_cups[pickup]
+        results.append(pickup)
+    return results
+
+
+def _cups_after_1(next_cups):
+    i = next_cups[1]
+    results = []
+    while i != 1:
+        results.append(i)
+        i = next_cups[i]
+    return results
+
+
+def _find_next_cup(labels):
+    ids = [int(x) for x in labels]
+    next_cup = {ids[i]: ids[(i + 1) % len(ids)] for i in range(len(ids))}
+    return [0] + [next_cup[i + 1] for i in range(len(ids))]
 
 
 if __name__ == "__main__":
